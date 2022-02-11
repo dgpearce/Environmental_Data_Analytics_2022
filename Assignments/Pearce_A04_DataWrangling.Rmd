@@ -1,6 +1,6 @@
 ---
 title: "Assignment 4: Data Wrangling"
-author: "Student Name"
+author: "Garrett Pearce, Section #04"
 output: pdf_document
 geometry: margin=2.54cm
 ---
@@ -22,11 +22,34 @@ The completed exercise is due on Monday, Feb 7 @ 7:00pm.
 1. Check your working directory, load the `tidyverse` and `lubridate` packages, and upload all four raw data files associated with the EPA Air dataset. See the README file for the EPA air datasets for more information (especially if you have not worked with air quality data previously). 
 
 2. Explore the dimensions, column names, and structure of the datasets. 
-
 ```{r, message = FALSE}
 #1
 
+getwd()
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+
+O18 <- read.csv('../Data/Raw/EPAair_O3_NC2018_raw.csv', stringsAsFactors = TRUE)
+O19 <- read.csv('../Data/Raw/EPAair_O3_NC2019_raw.csv', stringsAsFactors = TRUE)
+PM18 <- read.csv('../Data/Raw/EPAair_PM25_NC2018_raw.csv', stringsAsFactors = TRUE)
+PM19 <- read.csv('../Data/Raw/EPAair_PM25_NC2019_raw.csv', stringsAsFactors = TRUE)
+
 #2
+dim(O18)
+dim(O19)
+dim(PM18)
+dim(PM19)
+
+colnames(O18)
+colnames(O19)
+colnames(PM18)
+colnames(PM19)
+
+str(O18)
+str(O19)
+str(PM18)
+str(PM19)
 ```
 
 ## Wrangle individual datasets to create processed files.
@@ -37,13 +60,36 @@ The completed exercise is due on Monday, Feb 7 @ 7:00pm.
 
 ```{r}
 #3
+O18$Date <- as.Date(O18$Date, format = "%m/%d/%y")
+class(O18$Date)
+
+O19$Date <- as.Date(O19$Date, format = "%m/%d/%y")
+class(O19$Date)
+
+PM18$Date <- as.Date(PM18$Date, format = "%m/%d/%y")
+class(PM18$Date)
+
+PM19$Date <- as.Date(PM19$Date, format = "%m/%d/%y")
 
 #4
+O18.selected <- select(O18, Date, DAILY_AQI_VALUE, Site.Name, AQS_PARAMETER_DESC, COUNTY, SITE_LATITUDE, SITE_LONGITUDE)
+
+O19.selected <- select(O19, Date, DAILY_AQI_VALUE, Site.Name, AQS_PARAMETER_DESC, COUNTY, SITE_LATITUDE, SITE_LONGITUDE)
+
+PM18.selected <- select(PM18, Date, DAILY_AQI_VALUE, Site.Name, AQS_PARAMETER_DESC, COUNTY, SITE_LATITUDE, SITE_LONGITUDE)
+
+PM19.selected <- select(PM18, Date, DAILY_AQI_VALUE, Site.Name, AQS_PARAMETER_DESC, COUNTY, SITE_LATITUDE, SITE_LONGITUDE)
 
 #5
+PM18$AQS_PARAMETER_DESC <- "PM2.5"
+PM19$AQS_PARAMETER_DESC <- "PM2.5"
+
 
 #6
-
+write.csv(O18.selected, file= '../Data/Processed/EPAair_O3_NC2018_processed.csv')
+write.csv(O19.selected, file= '../Data/Processed/EPAair_O3_NC2019_processed.csv')
+write.csv(PM18.selected, file= '../Data/Processed/EPAair_PM25_NC2018_processed.csv')
+write.csv(PM19.selected, file= '../Data/Processed/EPAair_PM25_NC2019_processed.csv')
 ```
 
 
@@ -62,14 +108,25 @@ The completed exercise is due on Monday, Feb 7 @ 7:00pm.
 
 ```{r}
 #7
-
+data.combined <- rbind(O18.selected, O19.selected, PM18.selected, PM19.selected)
 #8
-
+pollution.summaries <-
+  data.combined %>%
+  filter(Site.Name %in% c("Linville Falls", "Durham Armory", "Leggett", "Hattie Avenue", "Clemmons Middle", "Mendenhall School", "Frying Pan Mountain", "West Johnston Co.", "Garinger High School", "Castle Hayne", "Pitt Agri. Center", "Bryson City", "Millbrook School"))%>%
+  group_by(Date, Site.Name, AQS_PARAMETER_DESC, COUNTY)%>%
+  summarise(mean_AQI=mean(DAILY_AQI_VALUE),
+            mean_lat=mean(SITE_LATITUDE),
+            mean_long= mean(SITE_LONGITUDE))%>%
+  mutate(Month=month(Date))%>%
+  mutate(Year=year(Date))
+  
 #9
+pollution.summaries.spread <- pivot_wider(pollution.summaries, names_from = AQS_PARAMETER_DESC, values_from = mean_AQI)
 
 #10
-
+dim(pollution.summaries.spread)
 #11
+write.csv(pollution.summaries.spread, file= '../Data/Processed/EPAair_O3_PM25_NC2122_Processed.csv')
 
 ```
 
@@ -84,12 +141,16 @@ The completed exercise is due on Monday, Feb 7 @ 7:00pm.
 
 ```{r}
 #12(a,b)
-
-
+pollution.summaries.sum <-
+  pollution.summaries.spread %>%
+  group_by(Site.Name, Month, Year)%>%
+  summarise(mean.AQI.PM=mean(`PM2.5 - Local Conditions`),
+            mean.AQI.O=mean(Ozone))%>%
+  filter(!is.na(mean.AQI.PM) | !is.na(mean.AQI.O))
 #13
-
+dim(pollution.summaries.sum)
 ```
 
 14. Why did we use the function `drop_na` rather than `na.omit`?
 
-> Answer: 
+> Answer: I ended up using is.na and the filter function, since this allowed me to specify omission of missing values in both columns. na.omit would have instead removed all NA values, and drop_na did not allow for specification across multiple columns.
